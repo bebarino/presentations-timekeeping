@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Timekeeping in the Linux Kernel</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+
+      code {
+	border-radius: 6px;
+      }
+
+      .remark-slide-content {
+	background: #6b7a8f;
+	color: white;
+      }
+
+      table {
+	padding-left: 0.15em;
+	width: 100%;
+      }
+      table tr {
+	border-top: 1px solid #cccccc;
+	/*background-color: #f7882f; */
+	background-color: #6b7a8f;
+	margin: 0;
+	padding: 0;
+      }
+      table tr:nth-child(2n) {
+	background-color: #6f7f8f;
+      }
+      table tr th {
+	font-weight: bold;
+	border: 1px solid #cccccc;
+	text-align: left;
+	margin: 0;
+	padding: 6px 13px;
+      }
+      table tr td {
+	border: 1px solid #cccccc;
+	text-align: left;
+	margin: 0;
+	padding: 6px 13px;
+      }
+      table tr th :first-child, table tr td :first-child {
+	margin-top: 0;
+      }
+      table tr th :last-child, table tr td :last-child {
+	margin-bottom: 0; 
+      }
+      .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+
+      /* Hide bullets on center slides */
+      .remark-slide .center ul {
+	   list-style-type: none;
+       }
+
+       .fade {
+	  opacity: 0.7;
+       }
+
+      /* Two-column layout */
+      .left-column {
+        width: 30%;
+        float: left;
+      }
+      .right-column {
+        width: 65%;
+        float: right;
+      }
+
+      /* counter slide */
+      #slide-first_counter .ticking_counter {
+	font-size: 200%;
+	margin: 0;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+      }
+
+      /* nohz timeline slide */
+      .task1 {
+	background: orange;
+	animation-name: slideDown1;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .task2 {
+	background: purple;
+	animation-name: slideDown2;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .task3 {
+	background: green;
+	animation-name: slideDown3;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .tick::before {
+	content: "tick";
+	position: relative;
+	top: -70px;
+	border: 2px solid red;
+        background: red; color: black;
+	font-size: 50%;    
+	transform: rotate(-90deg);
+	display: inline-block;
+	padding-left: 2px;
+	padding-right: 2px;
+      }
+
+      .tick1::before {
+        animation-name: slideDown-tick1;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .tick2::before {
+        animation-name: slideDown-tick2;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .tick3::before {
+        animation-name: slideDown-tick3;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .tick4::before {
+        animation-name: slideDown-tick4;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .hrtimer::before {
+	content: "hrt";
+	position: relative;
+	top: -70px;
+	border: 2px solid orange;
+	background: orange;
+	color: black;
+	font-size: 50%;    
+	transform: rotate(-90deg);
+	display: inline-block;
+	padding-left: 2px;
+	padding-right: 2px;
+	margin: 0px;
+      }
+
+      .idle_task_highres,
+      .idle_task_lowres,
+      .idle_task_periodic {
+	position: relative;
+	top: -67px;
+	padding: 2px;
+	border: 2px solid white;
+	border-radius: 10px;
+	background: blue;
+	color: white;
+	display: inline-block;
+	width: 50px;
+	text-align: center;
+      }
+
+      .i1 {
+        animation-name: slideDown-i1;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .i2 {
+        animation-name: slideDown-i2;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .idle_task_lowres {
+	width: 140px;
+	animation-name: slideDown-oneshot;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+      }
+
+      .timeline {
+	position: relative;
+	display: block;
+	margin: 80px;
+	margin-top: 5em;
+	height: 4px;
+	background: white;
+	text-align: center;
+      }
+
+      .float_middle.timeline {
+	margin-top: 10em;
+      }
+
+      .timeline::before,
+      .timeline::after {
+	content: "";
+	position: absolute;
+	top: -8px;
+	width: 0;
+	height: 0;
+	border-radius: 10px;
+	border: 10px solid white;
+      }
+
+      .timeline::before {
+	content: "";
+	left: -10px;
+      }
+      .timeline::after {
+	content: "time";
+	right: -10px;
+	border: 10px solid transparent;
+	border-right: 0;
+	border-left: 20px solid white;
+	border-radius: 3px;
+      }
+
+      .task {
+	position: relative;
+	top: -67px;
+	display: inline-block;
+	width: 150px;
+	border: 2px solid white;
+	border-radius: 10px;
+	text-align: center;
+      } 
+
+      .task21,
+      .task22 {
+	background: purple;
+	width: 60px;
+      }
+
+      /* Animations */
+      @keyframes slideDown1 {
+	      0% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      5% {
+		      transform: translateY(8%);
+	      }
+	      9% {
+		      transform: translateY(-2%);
+	      }
+	      10%{
+		      transform: translateY(0%);
+	      }
+	      100%{
+		      visibility: visible;
+	      }
+      }
+
+      @keyframes slideDown-tick1 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      9% {
+		      visibility: hidden;
+	      }
+	      10% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      15%{
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      19%{
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      20% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown2 {
+	      0% {
+		      visibility: hidden;
+	      }
+	      19% {
+		      visibility: hidden;
+	      }
+	      20% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      25% {
+		      transform: translateY(8%);
+	      }
+	      29% {
+		      transform: translateY(-2%);
+	      }
+	      30%{
+		      transform: translateY(0%);
+	      }  
+      }
+
+      @keyframes slideDown-tick2 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      29% {
+		      visibility: hidden;
+	      }
+	      30% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      35%{
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      39%{
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      40% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown-i1 {
+	      0% {
+		      transform: translateY(-100%);
+		      visibility: hidden;
+	      }
+	      39% {
+		      visibility: hidden;
+	      }
+	      40% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      45% {
+		      transform: translateY(8%);
+	      }
+	      49% {
+		      transform: translateY(-2%);
+	      }
+	      50%{
+		      transform: translateY(0%);
+	      }
+      }
+
+      @keyframes slideDown-oneshot {
+	      0% {
+		      transform: translateY(-100%);
+		      visibility: hidden;
+	      }
+	      39% {
+		      visibility: hidden;
+	      }
+	      40% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      45% {
+		      transform: translateY(8%);
+	      }
+	      49% {
+		      transform: translateY(-2%);
+	      }
+	      50%{
+		      transform: translateY(0%);
+	      }
+      }
+
+      @keyframes slideDown-tick3 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      49% {
+		      visibility: hidden;
+	      }
+	      50% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      55%{
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      59%{
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      60% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown-i2 {
+	      0% {
+		      transform: translateY(-100%);
+		      visibility: hidden;
+	      }
+	      59% {
+		      visibility: hidden;
+	      }
+	      60% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      65% {
+		      transform: translateY(8%);
+	      }
+	      69% {
+		      transform: translateY(-2%);
+	      }
+	      70%{
+		      transform: translateY(0%);
+	      }
+      }
+
+      @keyframes slideDown-tick4 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      69% {
+		      visibility: hidden;
+	      }
+	      70% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      75%{
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      79%{
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      80% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown3 {
+	      0% {
+		      transform: translateY(-100%);
+		      visibility: hidden;
+	      }
+	      79% {
+		      visibility: hidden;
+	      }
+	      80% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      85% {
+		      transform: translateY(8%);
+	      }
+	      89% {
+		      transform: translateY(-2%);
+	      }
+	      90%{
+		      transform: translateY(0%);
+	      }
+    }
+
+    /* HIGHRES animations */
+    .task21 {
+	animation-name: slideDown21;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+    }
+
+    .task22 {
+	animation-name: slideDown22;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+    }
+
+    .idle_task_highres {
+        animation-name: slideDown-highres;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+	width: 80px;
+    }
+
+    .hrtimer21::before {
+        animation-name: slideDown-hrtimer21;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+    }
+
+    .hrtimer1::before {
+        animation-name: slideDown-hrtimer1;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+    }
+
+    .hrtimer2::before {
+        animation-name: slideDown-hrtimer2;
+	animation-duration: 9s;
+	animation-iteration-count: infinite;
+    }
+
+      @keyframes slideDown21 {
+	      0% {
+		      visibility: hidden;
+	      }
+	      19% {
+		      visibility: hidden;
+	      }
+	      20% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      21% {
+		      transform: translateY(8%);
+	      }
+	      22% {
+		      transform: translateY(-2%);
+	      }
+	      23%{
+		      transform: translateY(0%);
+	      }  
+      }
+
+      @keyframes slideDown-hrtimer21 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      23% {
+		      visibility: hidden;
+	      }
+	      24% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      25% {
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      26% {
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      27% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown22 {
+	      0% {
+		      visibility: hidden;
+	      }
+	      26% {
+		      visibility: hidden;
+	      }
+	      27% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      28% {
+		      transform: translateY(8%);
+	      }
+	      29% {
+		      transform: translateY(-2%);
+	      }
+	      30%{
+		      transform: translateY(0%);
+	      }  
+      }
+
+      @keyframes slideDown-highres {
+	      0% {
+		      visibility: hidden;
+	      }
+	      39% {
+		      visibility: hidden;
+	      }
+	      40% {
+		      visibility: visible;
+		      transform: translateY(-100%);
+	      }
+	      45% {
+		      transform: translateY(8%);
+	      }
+	      49% {
+		      transform: translateY(-2%);
+	      }
+	      50% {
+		      transform: translateY(0%);
+	      }  
+      }
+
+      @keyframes slideDown-hrtimer1 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      49% {
+		      visibility: hidden;
+	      }
+	      50% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      52% {
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      54% {
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      55% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+      @keyframes slideDown-hrtimer2 {
+	      0% {
+		      visibility: hidden;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      62% {
+		      visibility: hidden;
+	      }
+	      63% {
+		      visibility: visible;
+		      transform: translateY(-100%) rotate(-90deg);
+	      }
+	      66% {
+		      transform: translateY(8%) rotate(-90deg);
+	      }
+	      67% {
+		      transform: translateY(-2%) rotate(-90deg);
+	      }			
+	      68% {
+		      transform: translateY(0%) rotate(-90deg);
+	      }
+      }
+
+    /* POSIX clocks comparision */
+    .line-block {
+	    margin-top: 50px;
+	    margin-left: 20px;
+	    margin-right: 20px;
+    }
+
+    .mono::before {
+	    content: "CLOCK_MONOTONIC";
+	    position: relative;
+	    top: 10px;
+	    font-weight: bold;
+    }
+
+    .boottime::before {
+	    content: "CLOCK_BOOTTIME";
+	    position: relative;
+	    top: 10px;
+	    font-weight: bold;
+    }
+
+    .real::before {
+	    content: "CLOCK_REALTIME";
+	    position: relative;
+	    top: 10px;
+	    font-weight: bold;
+    }
+
+    .mono::after,
+    .real::after,
+    .boottime::after {
+	    content: "";
+	    display: inline-block;
+	    position: absolute;
+	    float: right;
+	    top: -32px;
+	    right: -20px;
+	    width: 0;
+	    height: 0;
+	    border: 10px solid transparent;
+	    border-left: 20px solid white;
+	    border-radius: 3px;
+    }
+
+    .line {
+	    width: 100%;
+	    display: inline-block;
+	    height: 4px;
+	    background: white;
+    }
+
+    .boottime {
+	    animation: bootime-anim 20s linear;
+    }
+
+    .mono {
+	    width: 90%;
+	    animation: mono-anim 20s linear;
+    }
+
+    .event-1 {
+	    animation: event-1 20s linear;
+	    width: 10%;
+    }
+
+    .event-2 {
+	    width: 10%;
+	    text-align: center;
+	    font-size: 70%;
+	    animation: event-2 20s linear;
+	    background: blue;
+	    border: 2px solid white;
+	    border-radius: 10px;
+	    height: 20px;
+    }
+
+    .event-3 {
+	    width: 30%;
+	    animation: event-3 20s linear;
+    }
+
+    .event-4 {
+	    width: 15%;
+	    text-align: center;
+	    font-size: 70%;
+	    animation: event-4 20s linear;
+	    background: orange;
+	    border: 2px solid white;
+	    border-radius: 10px;
+	    height: 20px;
+    }
+
+    .event-5 {
+	    width: 30%;
+	    animation: event-5 20s linear;
+    }
+
+    .real {
+	    animation: real-anim 20s linear;
+	    width: 95%;
+    }
+
+    /* Animations */
+    @keyframes bootime-anim {
+	    0% {
+		    width: 0%;
+	    }
+	    100% {
+		    width: 100%;
+	    }
+    }
+
+    @keyframes real-anim {
+	    0% {
+		    width: 0%;
+	    }
+	    50% {
+		    width: 50%;
+	    }
+	    51% {
+		    width: 45%;
+	    }
+	    100% {
+		    width: 95%;
+	    }
+    }
+
+    @keyframes mono-anim {
+	    0% {
+		    width: 0%;
+	    }
+	    10% {
+		    width: 10%;
+	    }
+	    20% {
+		    width: 10%;
+	    }
+	    100% {
+		    width: 90%;
+	    }
+    }
+
+    @keyframes event-1 {
+	    0% {
+		    width: 0%;
+	    }
+	    10% {
+		    width: 10%;
+	    }
+    }
+
+    @keyframes event-2 {
+	    0%,11% {
+		    visibility: hidden;
+	    }
+	    15% {
+		    visibility: visible;
+	    }
+    }
+
+    @keyframes event-3 {
+	    0%,19% {
+		    visibility: hidden;
+		    width: 0%;
+	    }
+	    20% {
+		    visibility: visible;
+		    width: 0%;
+	    }
+	    50% {
+		    width: 30%;
+	    }
+    }
+
+    @keyframes event-4 {
+	    0%,51% {
+		    visibility: hidden;
+	    }
+	    55% {
+		    visibility: visible;
+	    }
+    }
+
+    @keyframes event-5 {
+	    0%,69% {
+		    visibility: hidden;
+		    width: 0%;
+	    }
+	    70% {
+		    visibility: visible;
+		    width: 0%;
+	    }
+	    100% {
+		    width: 30%;
+	    }
+    }
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle
+
+# Timekeeping in the Linux Kernel
+
+.fade[
+* Stephen Boyd
+* Qualcomm Innovation Center, Inc.
+]
+
+???
+
+Why? Had some commits to kernel/time area upstream and asked by co-workers
+to describe how it all works so they can debug system crashes when
+timekeeping breaks.
+
+---
+class: center, middle
+
+# In the beginning ...
+
+---
+
+name: first_counter
+
+# there was a counter
+
+.center[.ticking_counter[0000ec544fef3c81]]
+
+???
+
+Counter increments (or decrements) every time a counter tick happens.
+Ticks happen at the rate of the frequency of the counter.
+A 100 MHz counter will increment the counter every 1 / 100MHz = 10ns
+
+---
+
+# Calculating the Passage of Time (in ns)
+
+.center[
+###`\(\frac{c_{cycles}}{f_{Hz}} =\frac{c_{cycles}}{f (\frac{1}{seconds})} =(\frac{c_{cycles}}{f})_{seconds}\)`
+###`\((\frac{c_{cycles}}{f})_{seconds}=\frac{c_{cycles}}{f} \cdot 1e9 = T_{ns}\)`
+]
+
+--
+
+## Problems
+
+* Division is slow
+* Floating point math
+* Precision/overflow/underflow problems
+
+???
+
+Given a counter that ticks at a certain frequency, we want to know how much
+time has passed given a "cycle delta". This is a simple calculation, but it's
+slow due to division and could potentially overflow if the time delta is large.
+Let's see how we speed it up
+
+---
+
+# Calculating the Passage of Time (in ns) Better
+
+```C
+static inline s64 clocksource_cyc2ns(cycle_t cycles, u32 mult, u32 shift)
+{
+        return ((u64) cycles * mult) >> shift;
+}
+```
+
+--
+
+### Where do mult and shift come from?
+
+```C
+clocks_calc_mult_shift(u32 *mult, u32 *shift, u32 from, u32 to, u32 minsec)
+```
+
+???
+
+* Mult is cheaper than div
+* Shift does a div by power of 2, cheaper
+* Avoids floating point
+* Conversion range is limited (minsec controls that)
+* from/to is swapped for clocksource and clockevents
+ * clocksource go from frequency to ns, while clockevents go from ns to cycles
+
+Mult can't be too large or we'll overflow in the cycles * mult part when
+multiplying two large 64 bit numbers. A large shift allows us finer grained
+frequency adjustment via mult (discussed later).
+
+---
+
+# Abstract the Hardware! ![:img 45%](block-diagram-1.svg)
+
+```c
+struct clocksource {
+	cycle_t (*read)(struct clocksource *cs);
+	cycle_t mask;
+	u32 mult;
+	u32 shift;
+	...
+};
+
+clocksource_register_hz(struct clocksource *cs, u32 hz);
+clocksource_register_khz(struct clocksource *cs, u32 khz);
+```
+
+Time diff:
+
+```c
+struct clocksource *cs = &system_clocksource;
+cycle_t start = cs->read(cs);
+... /* do something for a while */
+cycle_t end = cs->read(cs);
+clocksource_cyc2ns(end - start, cs->mult, cs->shift);
+```
+
+???
+
+Putting it all together, we model a counter as a struct clocksource. It has
+fields for mult and shift, as well a a counter read function and a mask
+indicating which bits in the read function are valid to use in the delta
+calculation (recall clocksource_cyc2ns() from the previous slide).
+
+We register a clocksource with the hz/khz functions because they calculate a
+good mult/shift pair based on the assumption that we're not going to be idle
+for more than 10 minutes (we'll talk about this later).
+
+---
+
+# POSIX Clocks
+
+* CLOCK_BOOTTIME
+* CLOCK_MONOTONIC
+* CLOCK_MONOTONIC_RAW
+* CLOCK_MONOTONIC_COARSE
+* CLOCK_REALTIME
+* CLOCK_REALTIME_COARSE
+* CLOCK_TAI
+
+???
+
+* CLOCK_MONOTONIC - always increasing (doesn't count time spent in suspend)
+* CLOCK_MONOTONIC_RAW - same as CLOCK_MONOTONIC but no NTP adjustment (almost shouldn't be used outside of NTP type work)
+* CLOCK_MONOTONIC_COARSE - same as CLOCK_MONOTONIC but not as accurate
+* CLOCK_REALTIME - "wall clock", can be changed at runtime
+* CLOCK_REALTIME_COARSE - same as CLOCK_REALTIME but not as accurate
+* CLOCK_BOOTTIME - monotonic time since boot (includes time spent in suspend)
+* CLOCK_TAI - atomic international time
+
+Refresher: These are the POSIX clocks that Linux exposes. All of these are
+built on top of the clocksource. *_COARSE is less exact, and the resolution can
+be queried via clock_get_res(). It can be used to get time faster because it
+doesn't have to read the clocksource.
+
+---
+
+# POSIX Clocks Comparison
+
+.line-block[
+.line.boottime[]]
+
+.line-block[
+.line.mono[]]
+
+.line-block[
+.line.real[]]
+
+.line-block[
+.line.event-1[] .line.event-2[suspend] .line.event-3[] .line.event-4[settimeofday()] .line.event-5[]]
+
+???
+
+* Suspend makes monotonic clock freeze during that time
+* settimeofday() causes realtime clock to go backwards (could also go forward)
+
+---
+
+class: center, middle
+
+# **R**ead **A**ccumulate **T**rack (RAT)
+### *Best acronym ever*
+
+???
+
+* Read clocksource
+* Accumulate into nanoseconds u64
+* Track last time we accumulated
+
+---
+
+# __**R**__AT in Action (Read)
+
+```C
+struct tk_read_base {
+        struct clocksource      *clock;
+*       cycle_t                 (*read)(struct clocksource *cs);
+        cycle_t                 mask;
+        cycle_t                 cycle_last;
+        u32                     mult;
+        u32                     shift;
+        u64                     xtime_nsec;
+        ktime_t                 base;
+};
+
+static inline u64 timekeeping_delta_to_ns(struct tk_read_base *tkr,
+                                          cycle_t delta)
+{
+        u64 nsec = delta * tkr->mult + tkr->xtime_nsec;
+        return nsec >> tkr->shift;
+}
+
+static inline s64 timekeeping_get_ns(struct tk_read_base *tkr)
+{
+*       cycle_t delta = (tkr->read(tkr->clock) - tkr->cycle_last) & tkr->mask;
+        return timekeeping_delta_to_ns(tkr, delta);
+}
+```
+
+???
+
+Shows reading and using delta to calculate time.
+
+---
+
+# R**AT** in Action (Accumulate + Track)
+
+```C
+static u64 logarithmic_accumulation(struct timekeeper *tk, u64 offset,
+                                    u32 shift, unsigned int *clock_set)
+{
+        u64 interval = tk->cycle_interval << shift;
+
+*       tk->tkr_mono.cycle_last += interval;
+
+*       tk->tkr_mono.xtime_nsec += tk->xtime_interval << shift;
+        *clock_set |= accumulate_nsecs_to_secs(tk);
+        ...
+}
+
+static inline unsigned int accumulate_nsecs_to_secs(struct timekeeper *tk)
+{
+        u64 nsecps = (u64)NSEC_PER_SEC << tk->tkr_mono.shift;
+        unsigned int clock_set = 0;
+
+        while (tk->tkr_mono.xtime_nsec >= nsecps) {
+               int leap;
+
+*              tk->tkr_mono.xtime_nsec -= nsecps;
+*              tk->xtime_sec++;
+        ...
+}
+```
+
+???
+
+Shows how we accumulate time into xtime_nsec and xtime_sec, and also
+how we track the last cycle when we did the accumulation. With
+this we can start supporting multiple timelines.
+
+---
+# Juggling Clocks
+
+```c
+struct timekeeper {
+        struct tk_read_base     tkr_mono;
+        struct tk_read_base     tkr_raw;
+        u64                     xtime_sec;
+        unsigned long           ktime_sec;
+        struct timespec64       wall_to_monotonic;
+        ktime_t                 offs_real;
+        ktime_t                 offs_boot;
+        ktime_t                 offs_tai;
+        s32                     tai_offset;
+        struct timespec64       raw_time;
+};
+```
+
+
+.center[![:svg 100%](posix-clock-diagram.svg)
+Note: Not entirely accurate diagram
+]
+
+???
+
+Offsets maintain different clock timelines for us by letting
+us add or subtract time from another timeline. This way we only need
+to maintain one timeline, and adjust other POSIX clock timelines
+to that with offsets.
+
+Note: realtime is implemented by reading xtime_sec + clocksource read
+
+---
+# Handling Clock Drift
+
+.center[
+### `\(\frac{1}{19200000} \cdot 1e9 = {52.08\overline{3}}_{ns}\)`
+### Vs.
+### `\(\frac{1}{19200008} \cdot 1e9 = 52.083311_{ns}\)`
+]
+
+???
+* Hardware drifts
+ * Most systems aren't using atomic clocks!
+
+---
+
+# Handling Clock Drift
+
+.center[
+### `\(\frac{100000}{19200000} \cdot 1e9 = 520833_{ns}\)`
+### Vs.
+### `\(\frac{100000}{19200008} \cdot 1e9 = 5208331_{ns}\)`
+]
+
+### After 100k cycles we've lost 2 ns
+
+---
+# Mult to the Rescue!
+
+.center[
+### `\((100000 \cdot 873813333) \gg 24 = 5208333_{ns}\)`
+### Vs.
+### `\((100000 \cdot 873813109) \gg 24 = 5208331_{ns}\)`
+]
+
+### Approach: Adjust mult to match actual clock frequency
+
+???
+
+We can adjust for the error by modifying the mult to match the
+true frequency of the hardware. We have to be careful though
+to not overflow and to avoid making time jump forward or backwards
+
+---
+
+# Making Things Fast and Efficient
+
+```C
+static struct {
+        seqcount_t              seq;
+        struct timekeeper       timekeeper;
+} tk_core ____cacheline_aligned;
+
+static struct timekeeper shadow_timekeeper;
+
+struct tk_fast {
+        seqcount_t              seq;
+        struct tk_read_base     base[2];
+};
+
+static struct tk_fast tk_fast_mono ____cacheline_aligned;
+static struct tk_fast tk_fast_raw  ____cacheline_aligned;
+```
+
+???
+
+* NMI safety
+* Cache line aligning
+* Poor man's RCU design
+
+We have a tk_read_base structure to make reading the time NMI safe as well as
+small enough to fit into a 64-byte cache line so things don't always cache miss.
+
+tk_read_base is carefully constructed to fit into 56-bytes so it can be paired
+with a seq_count. shadow_timekeeper and 2 size array are poor mans RCU.
+
+---
+# A Note About NMIs and Time
+
+.center[![:svg 70%](fast-timekeeper.svg)]
+
+???
+
+Fast timekeepers can look like they go backwards if read happens while mult is
+adjusted and that uses stale data while subsequent read after mult is adjusted
+uses new data.
+
+---
+# Where We Are
+
+.center[![:svg 100%](block-diagram-2.svg)]
+
+---
+
+# What if my system doesn't have a counter?
+
+Insert #sadface here
+
+ * Can't use NOHZ
+ * Can't use hrtimers in "high resolution" mode
+
+Relegated to the jiffies clocksource:
+
+```C
+static cycle_t jiffies_read(struct clocksource *cs)
+{
+        return (cycle_t) jiffies;
+}
+
+static struct clocksource clocksource_jiffies = {
+        .name           = "jiffies",
+        .rating         = 1, /* lowest valid rating*/
+        .read           = jiffies_read,
+        ...
+};
+```
+
+???
+
+Lowres means that hrtimers are jiffy resolution not nanoseconds. We'll talk
+about this more later.
+
+---
+
+# Let's talk about jiffies
+
+--
+## .center[Jiffy = 1 / CONFIG_HZ]
+
+--
+## .center[Updated during the "tick"]
+
+???
+
+Jiffies are a good way to implement timeouts or timers that need to run with a
+low resolution. Also, jiffies is a global variable that anything in the
+kernel can read/reference.
+
+---
+
+# The tick?
+
+.center[![The tick](the-tick.jpg)]
+
+???
+
+No not that one
+
+---
+# The tick
+
+Periodic event that updates
+
+* jiffies
+* process accounting
+* global load accounting
+* timekeeping
+* POSIX timers
+* RCU callbacks
+* hrtimers
+* irq_work
+
+???
+
+Rate of the event is CONFIG_HZ
+
+It's typically implemented as an interrupt, so if the CPU can't receieve
+interrupts then jiffies isn't going to increment. Also, if we don't have a
+clocksource then we really need the interrupts to be exact or our jiffies
+clocksource will slow down.
+
+Not everything is done every jiffy. Things depend, like hrtimers as we'll
+see later, or irq_work where we emulate it here if arches can't do it
+themselves.
+
+---
+
+# Implementing the tick in hardware
+
+### Timer Value: .ticking_timer[4efa4652]
+### Match Value: .timer_match[]
+
+.center.tick_img[![The tick](the-tick.jpg)]
+
+???
+
+Let's look at an example. This shows a hardware timer that we can configure to
+trigger an interrupt when the match value matches the timer value.
+
+---
+# Abstract the Hardware!
+
+```C
+struct clock_event_device {
+        void            (*event_handler)(struct clock_event_device *);
+        int             (*set_next_event)(unsigned long evt,
+                                      struct clock_event_device *);
+        int             (*set_next_ktime)(ktime_t expires,
+                                      struct clock_event_device *);
+        ktime_t         next_event;
+        u64             max_delta_ns;
+        u64             min_delta_ns;
+        u32             mult;
+        u32             shift;
+        unsigned int    features;
+#define CLOCK_EVT_FEAT_PERIODIC 0x000001
+#define CLOCK_EVT_FEAT_ONESHOT  0x000002
+#define CLOCK_EVT_FEAT_KTIME    0x000004
+        int             irq;
+        ...
+};
+
+void clockevents_config_and_register(struct clock_event_device *dev,
+                                     u32 freq, unsigned long min_delta,
+                                     unsigned long max_delta)
+```
+
+???
+
+We model a hardware timer with a clockevent. structure used
+to setup an event to trigger at some point in the future. event_handler() is
+the function to call when the event happens. next_event holds the next
+ktime this clockevent is configured to call event_handler. Clockevents also use
+mult/shift to calculate a cycle counter value that corresponds to nanoseconds.
+min/max delta clamp that time in nanoseconds the clockevent is expected to be
+able to program the clockevent to raise an event in the future.
+
+Three types of features:
+
+ * ### CLOCK_EVT_FEAT_PERIODIC
+Can raise an interrupt every 1 / CONFIG_HZ seconds
+ * ### CLOCK_EVT_FEAT_ONESHOT
+Can raise an interrupt in X cycles. Time is converted from nanoseconds based on the clocksource to cycles of the clockevent.
+ * ### CLOCK_EVT_FEAT_KTIME
+Can raise an interrupt based on a ktime structure (think nanoseconds) (only used for broadcast hrtimers)
+
+---
+
+# Three event_handlers
+
+```C
+struct clock_event_device {
+*       void            (*event_handler)(struct clock_event_device *);
+        int             (*set_next_event)(unsigned long evt,
+                                      struct clock_event_device *);
+        int             (*set_next_ktime)(ktime_t expires,
+                                      struct clock_event_device *);
+        ktime_t         next_event;
+        u64             max_delta_ns;
+	...
+}
+```
+
+| Handler                    | Usage         |
+|----------------------------|---------------|
+| tick_handle_periodic()     | default       |
+| tick_nohz_handler()        | lowres mode   |
+| hrtimer_interrupt()        | highres mode  |
+
+???
+
+Function where we run the tick. We'll go over the usages next.
+
+---
+
+# Ticks During Idle
+
+## tick_handle_periodic()
+
+.timeline[.task.task1[t1] .tick.tick1[] .task.task2[t2] .tick.tick2[] .idle_task_periodic.i1[idle] .tick.tick3[] .idle_task_periodic.i2[idle] .tick.tick4[] .task.task3[t3]
+]
+
+???
+
+* Default function
+* Runs tick every CONFIG_HZ cycles
+* Typically only runs for a short time until others take over
+* Can emulate with ONESHOT feature, but otherwise relies on PERIODIC feature to reprogram tick within clockevent driver
+* Note we always get the tick even when we're idle for longer than HZ
+
+---
+
+# Tick-less Idle (i.e. CONFIG_NOHZ_IDLE)
+
+## tick_handle_periodic()
+
+.timeline[.task.task1[t1] .tick.tick1[] .task.task2[t2] .tick.tick2[] .idle_task_periodic.i1[idle] .tick.tick3[] .idle_task_periodic.i2[idle] .tick.tick4[] .task.task3[t3]]
+
+## tick_nohz_handler()
+
+.timeline[.task.task1[t1] .tick.tick1[] .task.task2[t2] .tick.tick2[] .idle_task_lowres[idle] .tick.tick4[] .task.task3[t3]]
+
+???
+
+NOHZ_IDLE is defined as removing the periodic tick during CPU idle.
+
+Run NOHz mode in low resolution mode. Ticks can be skipped and we can
+program clockevent to trigger an event X cycles in the future. Needs
+oneshot feature of clockevent to program clockevent appropriately.
+
+---
+
+# High Resolution Mode
+
+## tick_nohz_handler()
+
+.timeline[.task.task1[t1] .tick.tick1[] .task.task2[t2] .tick.tick2[] .idle_task_lowres[idle] .tick.tick4[] .task.task3[t3]]
+
+## hrtimer_interrupt()
+
+.timeline[.task.task1[t1] .tick.tick1[] .task.task21[t] .hrtimer.hrtimer21[] .task.task22[2] .tick.tick2[] .idle_task_highres[idle] .hrtimer.hrtimer1[] .hrtimer.hrtimer2[] .tick.tick4[] .task.task3[t3]]
+
+???
+
+## Everything is an hrtimer now
+
+Runs NOHZ mode in high resolution mode. Same as low-res, but hrtimers
+control when the next time the clockevent should fire. The tick itself
+is an hrtimer, just like other hrtimers. In lowres mode hrtimers run
+during the tick, but in high res mode, hrtimers run when they're 
+programmed to.
+
+---
+
+# Tick Devices
+
+```C
+enum tick_device_mode {
+        TICKDEV_MODE_PERIODIC,
+        TICKDEV_MODE_ONESHOT,
+};
+
+struct tick_device {
+        struct clock_event_device *evtdev;
+        enum tick_device_mode mode;
+};
+
+DEFINE_PER_CPU(struct tick_device, tick_cpu_device);
+```
+
+.center[![tick device to counter](clockevent-diagram-1.svg)]
+
+???
+
+There can be more clockevents than CPUs, so we need some local storage of the
+tick device for each CPU. Per-cpu so we can interrupt each CPU without cross
+CPU interrupts (more latency). So we have a wrapper structure to hold the
+clockevent dedicated to each CPU plus the operating mode (periodic or oneshot).
+
+The mode is similar to clockevent features, but slightly different.
+
+Periodic means that the tick device has configured its clockevent to call
+tick_periodic() each jiffy (assuming we aren't using nohz/highres). We can
+emulate periodic with CLOCK_EVT_FEAT_ONESHOT as well. This is the default
+operating mode when a clockevent is registered so that we ensure everything
+keeps working.
+
+Oneshot means that the tick device has configured its clockevent to call a nohz
+or hrtimer handler. We would use oneshot mode if we're trying to go
+"tick-less".
+
+---
+
+# Running the Tick
+
+```C
+struct tick_sched {
+        struct hrtimer                  sched_timer;
+        ...
+};
+```
+
+.center[![:svg 100%](handler-diagram.svg)]
+
+???
+
+When we're in oneshot + nohz mode, we emulate the tick with an hrtimer.  In
+lowres we use the hrtimer as a way to track the next tick, but otherwise the
+event handler programs the tick_device directly.
+
+In highres mode the tick is a true hrtimer, and the event handler programs
+whatever next hrtimer there is (tick or not) into the tick device
+
+---
+
+# Running the Tick (Per-CPU)
+
+```C
+struct tick_sched {
+        struct hrtimer                  sched_timer;
+        ...
+};
+
+*DEFINE_PER_CPU(struct tick_sched, tick_cpu_sched);
+```
+
+.center[![:svg 80%](handler-diagram-percpu.svg)]
+
+???
+
+Everything is duplicated per-cpu. Only one CPU does the global jiffies
+update though.
+
+---
+
+# Stopping the Tick
+
+* Not always as simple as
+ * ```C
+hrtimer_cancel(&ts->sched_timer)```
+* Could be that we need to restart the timer so far in the future
+ * ```C
+hrtimer_start(&ts->sched_timer, tick, HRTIMER_MODE_ABS_PINNED)```
+
+Needs to consider
+* timers
+* hrtimers
+* RCU callbacks
+* jiffie update responsibility
+* clocksource's max_idle_ns (timekeeping max deferment)
+
+*Details in ```tick_nohz_stop_sched_tick()```*
+
+???
+
+Otherwise known as entering NO-HZ idle. Either we cancel the hrtimer
+because we aren't the cpu updating jiffies, or we program the hrtimer
+to run some time in the future depending on what events are on this CPU
+or if we need to update jiffies.
+
+---
+
+# Tick Broadcast
+
+* For when your clockevents **FAIL AT LIFE**
+ * i.e., they don't work during some CPU idle low power modes
+ * Indicated by CLOCK_EVT_FEAT_C3_STOP flag
+
+.center[![:svg 80%](broadcast-diagram.svg)]
+
+???
+
+Emulate per-cpu tick_device with a global tick_device. Only considers
+tick_devices that are non-functional in low power modes and is closely tied
+to CPU idle. Mechanism is by means of forcing an interrupt on another CPU
+from the broadcast clockevent's event_handler().
+
+---
+
+# Timers
+
+* Operates with jiffies granularity
+* Requirements
+ * jiffies increment
+ * clockevent
+ * softirq
+
+.center[![:svg 90%](timer-diagram.svg)]
+
+---
+
+# HRTimers
+
+* Operates with ktime (nanoseconds) granularity
+* Requirements
+ * timekeeping increment
+ * clockevent
+ * tick_device
+
+.center[![:svg 88%](hrtimer-diagram.svg)]
+
+???
+
+Everything comes together. We use timekeeping each time we run
+the timers to make sure we only run timers that we need to run.
+That in turn uses the clocksource, and the timers only run because
+we've setup a clockevent to run hrtimer_interrupt().
+
+In low-res mode hrtimers still work, but we run hrtimers from the tick
+handler so they become jiffy granularity.
+
+---
+
+# Summary
+
+.left-column[
+### What we covered
+ * clocksources
+ * timekeeping
+ * clockevents
+ * jiffies
+ * NOHZ
+ * tick broadcast
+ * timers
+ * hrtimers
+]
+.right-column[
+### What's difficult
+ * Timekeeping has to handle NTP and drift
+ * Tick uses multiple abstraction layers
+ * NOHZ gets complicated when starting/stopping the tick
+ * Tick broadcast turns up NOHZ to 11
+]
+
+???
+
+Thanks John Stultz for slide review! And remark.js and mathjax for the slide
+software.
+
+    </textarea>
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js">
+    </script>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
+    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML&delayStartupUntil=configured"></script>
+    <script>
+      remark.macros.svg = function (percentage) {
+	  var url = this;
+	  return '<object type="image/svg+xml" data="' + url + '" width="' + percentage + '"/>';
+      };
+      remark.macros.img = function (percentage) {
+	  var url = this;
+	  return '<img src="' + url + '" style="width:' + percentage + '"/>';
+      };
+      var slideshow = remark.create({
+	  ratio: '16:9',
+          highlightStyle: 'zenburn',
+          highlightLanguage: 'C',
+          highlightLines: true
+	});
+
+      var counter = $( ".ticking_counter" );
+      var val = 0x0000ec544fef3c81;
+      setInterval(function() {
+         counter.text(sprintf("%'016x", ++val));
+      }, 200);
+
+      var timer = $( ".ticking_timer" );
+      var match = $( ".timer_match" );
+      var timer_val = 0x4efa4652;
+      var match_val = timer_val + 20;
+      var tick_img = $( ".tick_img" );
+      tick_img.hide();
+
+      match.text(sprintf("%'08x", match_val))
+
+      setInterval(function() {
+         timer.text(sprintf("%'08x", ++timer_val));
+         if (match_val - timer_val == 15) {
+             tick_img.fadeOut();
+	 } else if (match_val == timer_val) {
+             match_val += 20;
+             match.text(sprintf("%'08x", match_val))
+	     tick_img.fadeIn();
+          }
+      }, 500);
+
+      // Setup MathJax
+      MathJax.Hub.Config({
+          tex2jax: {
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+          },
+	  "HTML-CSS": {
+	  	scale: 85,
+	  }
+      });
+      MathJax.Hub.Queue(function() {
+          $(MathJax.Hub.getAllJax()).map(function(index, elem) {
+              return(elem.SourceElement());
+          }).parent().addClass('has-jax');
+      });
+
+      MathJax.Hub.Configured();
+    </script>
+  </body>
+</html>
