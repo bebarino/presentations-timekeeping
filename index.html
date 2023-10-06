@@ -854,7 +854,6 @@ class: center, middle
 
 .fade[
 * Stephen Boyd
-* Qualcomm Innovation Center, Inc.
 ]
 
 ???
@@ -1039,19 +1038,35 @@ class: center, middle
 
 ---
 
-# __**R**__AT in Action (Read)
+# __**RA**__T in Action (Read + Track)
 
 ```C
 struct tk_read_base {
-        struct clocksource      *clock;
-*       cycle_t                 (*read)(struct clocksource *cs);
-        cycle_t                 mask;
-        cycle_t                 cycle_last;
-        u32                     mult;
-        u32                     shift;
-        u64                     xtime_nsec;
-        ktime_t                 base;
+*       struct clocksource    *clock;
+        u64                   mask;
+        u64                   cycle_last;
+        u32                   mult;
+        u32                   shift;
+        u64                   xtime_nsec;
+        ktime_t               base;
 };
+
+static inline u64 tk_clock_read(const struct tk_read_base *tkr)
+{
+        struct clocksource *clock = READ_ONCE(tkr->clock);
+*       return clock->read(clock);
+}
+
+static inline u64 clocksource_delta(u64 now, u64 last, u64 mask)
+{
+        return (now - last) & mask;
+}
+
+static inline u64 timekeeping_get_delta(const struct tk_read_base *tkr)
+{
+		u64 now = tk_clock_read(tkr);
+		return clocksource_delta(now, last, mask);
+}
 
 static inline u64 timekeeping_delta_to_ns(struct tk_read_base *tkr,
                                           cycle_t delta)
@@ -1062,7 +1077,7 @@ static inline u64 timekeeping_delta_to_ns(struct tk_read_base *tkr,
 
 static inline s64 timekeeping_get_ns(struct tk_read_base *tkr)
 {
-*       cycle_t delta = (tkr->read(tkr->clock) - tkr->cycle_last) & tkr->mask;
+*       u64 delta = timekeeping_get_delta(tkr);
         return timekeeping_delta_to_ns(tkr, delta);
 }
 ```
@@ -1073,7 +1088,7 @@ Shows reading and using delta to calculate time.
 
 ---
 
-# R**AT** in Action (Accumulate + Track)
+# R**A**T in Action (Accumulate)
 
 ```C
 static u64 logarithmic_accumulation(struct timekeeper *tk, u64 offset,
