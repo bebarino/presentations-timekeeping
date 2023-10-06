@@ -1038,7 +1038,7 @@ class: center, middle
 
 ---
 
-# __**RA**__T in Action (Read + Track)
+# __**R**__AT in Action (Read) 
 
 ```C
 struct tk_read_base {
@@ -1056,7 +1056,45 @@ static inline u64 tk_clock_read(const struct tk_read_base *tkr)
         struct clocksource *clock = READ_ONCE(tkr->clock);
 *       return clock->read(clock);
 }
+```
 
+???
+
+Shows reading of clocksource.
+
+---
+
+# RA__**T**__ in Action (Track) 
+
+```C
+struct tk_read_base {
+	        struct clocksource    *clock;
+			u64                   mask;
+*       	u64                   cycle_last;
+			u32                   mult;
+			u32                   shift;
+			u64                   xtime_nsec;
+			ktime_t               base;
+};
+
+static inline u64 timekeeping_get_delta(const struct tk_read_base *tkr)
+{
+		u64 now = tk_clock_read(tkr);
+*		u64 last = tkr->cycle_last;
+		return clocksource_delta(now, last, mask);
+}
+
+static void timekeeping_forward_now(struct timekeeper *tk)
+{
+		...
+*   	tk->tkr_mono.cycle_last = cycle_now;
+}
+```
+---
+
+# RAT in Action
+
+```C
 static inline u64 clocksource_delta(u64 now, u64 last, u64 mask)
 {
         return (now - last) & mask;
@@ -1065,6 +1103,7 @@ static inline u64 clocksource_delta(u64 now, u64 last, u64 mask)
 static inline u64 timekeeping_get_delta(const struct tk_read_base *tkr)
 {
 		u64 now = tk_clock_read(tkr);
+*       u64 last = tkr->cycle_last;
 		return clocksource_delta(now, last, mask);
 }
 
@@ -1081,10 +1120,6 @@ static inline s64 timekeeping_get_ns(struct tk_read_base *tkr)
         return timekeeping_delta_to_ns(tkr, delta);
 }
 ```
-
-???
-
-Shows reading and using delta to calculate time.
 
 ---
 
@@ -1572,7 +1607,7 @@ Needs to consider
 * timers
 * hrtimers
 * RCU callbacks
-* jiffie update responsibility
+* jiffies update responsibility
 * clocksource's max_idle_ns (timekeeping max deferment)
 
 *Details in ```tick_nohz_stop_sched_tick()```*
